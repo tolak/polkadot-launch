@@ -26,6 +26,7 @@
 	"parachains": [
 		{
 			"bin": "./bin/collator",
+			"chain": "collator",
 			"id": "2000",
 			"wsPort": 9977,
 			"port": 30336,
@@ -34,6 +35,7 @@
 		},
 		{
 			"bin": "./bin/collator",
+			"chain": "collator",
 			"id": "5000",
 			"wsPort": 9988,
 			"port": 30337,
