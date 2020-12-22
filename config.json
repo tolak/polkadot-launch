@@ -6,20 +6,17 @@
 			{
 				"name": "alice",
 				"wsPort": 9944,
-				"port": 30333,
-				"flags": ["-lruntime=debug"]
+				"port": 30333
 			},
 			{
 				"name": "bob",
 				"wsPort": 9955,
-				"port": 30334,
-				"flags": ["-lruntime=debug"]
+				"port": 30334
 			},
 			{
 				"name": "charlie",
 				"wsPort": 9966,
-				"port": 30335,
-				"flags": ["-lruntime=debug"]
+				"port": 30335
 			}
 		]
 	},
@@ -41,17 +38,22 @@
 			"port": 30337,
 			"balance": "1000000000000000000000",
 			"flags": ["--", "--execution=wasm"]
-		},
-	],
-	"simpleParachains": [
-		{
-			"bin": "./bin/adder-collator-mac",
-			"id": "400",
-			"port": "31400",
-			"balance": "1000000000000000000000"
 		}
 	],
 	"types": {
+		"DownwardMessage": "Vec<u8>",
+		"InboundDownwardMessage": {
+			"sent_at": "BlockNumber",
+			"msg": "DownwardMessage"
+		},
+		"InboundHrmpMessage": {
+			"sent_at": "BlockNumber",
+			"data": "Vec<u8>"
+		},
+		"MessageIngestionType": {
+			"downward_messages": "Vec<InboundDownwardMessage>",
+			"horizontal_messages": "BTreeMap<ParaId, Vec<InboundHrmpMessage>>"
+		},
 		"HrmpChannelId": {
 			"sender": "u32",
 			"receiver": "u32"
