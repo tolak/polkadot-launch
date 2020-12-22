@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
-import { startNode, startCollator, killAll, generateChainSpec, generateChainSpecRaw } from './spawn';
-import { connect, registerParachain, getHeader, setBalance } from './rpc';
-import { wasmHex } from './wasm';
+import {
+	startNode, startCollator, killAll, generateChainSpec, generateChainSpecRaw, exportGenesisWasm,
+	exportGenesisState, startSimpleCollator,
+} from './spawn';
+import { connect, registerParachain, setBalance } from './rpc';
 import { checkConfig } from './check';
 import { clearAuthorities, addAuthority } from './spec';
 import { parachainAccount } from './parachain';
@@ -35,6 +37,9 @@ function sleep(ms) {
 }
 
 async function main() {
+	// keep track of registered parachains
+	let registeredParachains = {}
+
 	// Verify that the `config.json` has all the expected properties.
 	if (!checkConfig(config)) {
 		return;
@@ -63,37 +68,77 @@ async function main() {
 		startNode(relay_chain_bin, name, wsPort, port, spec, flags);
 	}
 
+	// Connect to the first relay chain node to submit the extrinsic.
+	let relayChainApi = await connect(config.relaychain.nodes[0].wsPort, config.types);
+
 	// Then launch each parachain
 	for (const parachain of config.parachains) {
-		const { id, wsPort, port, flags, balance, chain } = parachain;
+		const { id, wsPort, balance, port, flags, chain } = parachain;
 		const bin = resolve(config_dir, parachain.bin);
 		if (!fs.existsSync(bin)) {
 			console.error("Parachain binary does not exist: ", bin);
 			process.exit();
 		}
 		let account = parachainAccount(id);
-		console.log(`Starting Parachain ${id}: ${account}`);
-		// This will also create an `<id>.wasm` file in the same directory as `bin`.
+		console.log(`Starting a Collator for parachain ${id}: ${account}, Collator port : ${port} wsPort : ${wsPort}`);
 		startCollator(bin, id, wsPort, port, chain, spec, flags)
+
+		// If it isn't registered yet, register the parachain on the relaychain
+		if (!registeredParachains[id]) {
+			console.log(`Registering Parachain ${id}`);
+
+			// Get the information required to register the parachain on the relay chain.
+			let genesisState
+			let genesisWasm
+			try {
+				genesisState = await exportGenesisState(bin, id, chain)
+				genesisWasm = await exportGenesisWasm(bin, chain)
+			} catch (err) {
+				console.error(err)
+				process.exit(1)
+			}
+
+			await registerParachain(relayChainApi, id, genesisWasm, genesisState);
+
+			registeredParachains[id] = true
+
+			// Allow time for the TX to complete, avoiding nonce issues.
+			// TODO: Handle nonce directly instead of this.
+			if (balance) {
+				await setBalance(relayChainApi, account, balance)
+			}
+		}
 	}
 
-	// Then register each parachain on the relay chain.
-	for (const parachain of config.parachains) {
-		const { id, wsPort, port, flags, balance, chain } = parachain;
-		const bin = resolve(config_dir, parachain.bin);
-		let account = parachainAccount(id);
+	// Then launch each simple parachain (e.g. an adder-collator)
+	for (const simpleParachain of config.simpleParachains) {
+		const { id, port, balance } = simpleParachain
+		const bin = resolve(config_dir, simpleParachain.bin)
+		if (!fs.existsSync(bin)) {
+			console.error("Simple parachain binary does not exist: ", bin);
+			process.exit();
+		}
 
-		console.log(`Connecting to Parachain ${id}`);
-		const api = await connect(wsPort);
-		console.log(`Registering Parachain ${id}`);
+		let account = parachainAccount(id);
+		console.log(`Starting Parachain ${id}: ${account}`);
+		startSimpleCollator(bin, id, spec, port)
 
 		// Get the information required to register the parachain on the relay chain.
-		let header = await getHeader(api);
-		let bin_path = dirname(bin);
-		let wasm = wasmHex(resolve(bin_path, `${id}.wasm`));
-		// Connect to the first relay chain node to submit the extrinsic.
-		let relayChainApi = await connect(config.relaychain.nodes[0].wsPort);
-		await registerParachain(relayChainApi, id, wasm, header)
+		let genesisState
+		let genesisWasm
+		try {
+			// adder-collator does not support `--parachain-id` for export-genesis-state (and it is
+			// not necessary for it anyway), so we don't pass it here.
+			genesisState = await exportGenesisState(bin, null, null)
+			genesisWasm = await exportGenesisWasm(bin, null)
+		} catch (err) {
+			console.error(err)
+			process.exit(1)
+		}
+
+		console.log(`Registering Parachain ${id}`);
+		await registerParachain(relayChainApi, id, genesisWasm, genesisState);
+
 		// Allow time for the TX to complete, avoiding nonce issues.
 		// TODO: Handle nonce directly instead of this.
 		if (balance) {

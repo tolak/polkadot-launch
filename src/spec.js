@@ -9,8 +9,14 @@ function nameCase(string) {
 // Remove all existing keys from `session.keys`
 export function clearAuthorities(spec) {
 	let rawdata = fs.readFileSync(spec);
-	let chainSpec = JSON.parse(rawdata);
-	chainSpec.genesis.runtime.session.keys = [];
+	let chainSpec;
+	try {
+		chainSpec = JSON.parse(rawdata);
+	} catch {
+		console.error("failed to parse the chain spec");
+		process.exit(1);
+	}
+	chainSpec.genesis.runtime.palletSession.keys = [];
 	let data = JSON.stringify(chainSpec, null, 2);
 	fs.writeFileSync(spec, data);
 	console.log(`Starting with a fresh authority set:`);
@@ -36,12 +42,14 @@ export async function addAuthority(spec, name) {
 			"im_online": sr_account.address,
 			"parachain_validator": sr_account.address,
 			"authority_discovery": sr_account.address,
+			"para_validator": sr_account.address,
+			"para_assignment": sr_account.address,
 		}
 	];
 
 	let rawdata = fs.readFileSync(spec);
 	let chainSpec = JSON.parse(rawdata);
-	chainSpec.genesis.runtime.session.keys.push(key);
+	chainSpec.genesis.runtime.palletSession.keys.push(key);
 	let data = JSON.stringify(chainSpec, null, 2);
 	fs.writeFileSync(spec, data);
 	console.log(`Added Authority ${name}`);

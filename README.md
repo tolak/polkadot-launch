@@ -17,7 +17,7 @@ polkadot-launch config.json
 
 The required configuration file defines the properties of the network you want to set up.
 
-The file has two section: `relaychain` and `parachains`. You can see an example [here](config.json).
+The file has three sections: `relaychain`, `parachains`, `types`. You can see an example [here](config.json).
 
 #### `relaychain`
 
@@ -62,6 +62,31 @@ These variables are fed directly into the collator binary and used to spawn a no
 	--chain=<chain>
 	-- \
 	--chain=<relaychain.chain>-raw.json \
+```
+
+#### `simpleParachains`
+
+This is similar to `parachains` but for "simple" collators like the adder-collator, a very simple
+collator that lives in the polkadot repo and is meant just for simple testing. It supports a subset
+of configuration values:
+
+* `bin`: The path to the collator binary.
+* `id`: The id to assign to this parachain. Must be unique.
+* `port`: The TCP port for this node.
+* `balance`: (Optional) Configure a starting amount of balance on the relay chain for this chain's account ID.
+
+#### `types`
+
+These are the Polkadot JS types you might need to include so that Polkadot JS will be able to interface properly
+with your runtime.
+
+```json
+"types": {
+	"HrmpChannelId": {
+		"sender": "u32",
+		"receiver": "u32"
+	}
+}
 ```
 
 ## How Does It Work?
